@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AI Shooter - ذہین شوٹر</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');
+
+  :root {
+    --neon: #00f5ff;
+    --red: #ff2d55;
+    --gold: #ffd700;
+    --dark: #050a0f;
+    --panel: rgba(0,245,255,0.05);
+    --border: rgba(0,245,255,0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; }
+
+  body {
+    background: var(--dark);
+    font-family: 'Orbitron', monospace;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* SCREENS */
+  .screen { display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+  .screen.active { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+  /* MENU SCREEN */
+  #menuScreen {
+    background: radial-gradient(ellipse at center, #0a1628 0%, #050a0f 70%);
+    gap: 20px;
+  }
+  .menu-title {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(28px, 8vw, 52px);
+    font-weight: 900;
+    color: var(--neon);
+    text-shadow: 0 0 30px var(--neon), 0 0 60px var(--neon);
+    letter-spacing: 4px;
+    text-align: center;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .menu-subtitle {
+    font-family: 'Noto Nastaliq Urdu', serif;
+    font-size: 18px;
+    color: rgba(0,245,255,0.6);
+    direction: rtl;
+  }
+  @keyframes pulse {
+    0%,100% { text-shadow: 0 0 20px var(--neon), 0 0 40px var(--neon); }
+    50% { text-shadow: 0 0 40px var(--neon), 0 0 80px var(--neon), 0 0 120px var(--neon); }
+  }
+  .grid-bg {
+    position: absolute;
+    width: 100%; height: 100%;
+    background-image:
+      linear-gradient(rgba(0,245,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,245,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: gridMove 20s linear infinite;
+  }
+  @keyframes gridMove {
+    0% { background-position: 0 0; }
+    100% { background-position: 40px 40px; }
+  }
+  .btn {
+    font-family: 'Orbitron', monospace;
+    padding: 16px 40px;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    border: 2px solid var(--neon);
+    background: transparent;
+    color: var(--neon);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+    text-transform: uppercase;
+  }
+  .btn:hover, .btn:active {
+    background: var(--neon);
+    color: var(--dark);
+    box-shadow: 0 0 30px var(--neon);
+  }
+  .btn::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0,245,255,0.2), transparent);
+    transition: left 0.5s;
+  }
+  .btn:hover::before { left: 100%; }
+
+  /* GAME SCREEN */
+  #gameScreen { background: #050a0f; padding: 0; }
+
+  #gameCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  /* HUD */
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 10px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(180deg, rgba(5,10,15,0.9) 0%, transparent 100%);
+    z-index: 10;
+    pointer-events: none;
+  }
+  .hud-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .hud-label {
+    font-size: 8px;
+    letter-spacing: 2px;
+    color: rgba(0,245,255,0.5);
+    font-family: 'Noto Nastaliq Urdu', serif;
+    direction: rtl;
+  }
+  .hud-value {
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--neon);
+    text-shadow: 0 0 10px var(--neon);
+  }
+  #healthBar {
+    width: 120px;
+    height: 8px;
+    background: rgba(255,45,85,0.2);
+    border: 1px solid var(--red);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  #healthFill {
+    height: 100%;
+    background: var(--red);
+    box-shadow: 0 0 8px var(--red);
+    transition: width 0.3s;
+  }
+
+  /* AI COMMENTARY */
+  #aiComment {
+    position: absolute;
+    bottom: 180px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.8);
+    border: 1px solid var(--neon);
+    border-radius: 12px;
+    padding: 10px 20px;
+    font-family: 'Noto Nastaliq Urdu', serif;
+    font-size: 14px;
+    color: var(--neon);
+    direction: rtl;
+    max-width: 90%;
+    text-align: center;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity 0.5s;
+    pointer-events: none;
+  }
+  #aiComment.show { opacity: 1; }
+
+  /* CONTROLS */
+  #controls {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 160px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px 20px;
+    z-index: 10;
+    background: linear-gradient(0deg, rgba(5,10,15,0.9) 0%, transparent 100%);
+  }
+  #joystick {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--panel);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #joystickKnob {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--neon), rgba(0,245,255,0.3));
+    box-shadow: 0 0 15px var(--neon);
+    position: absolute;
+    transition: transform 0.1s;
+  }
+  #shootBtn {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 3px solid var(--red);
+    background: rgba(255,45,85,0.1);
+    color: var(--red);
+    font-size: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 0 20px rgba(255,45,85,0.3);
+    transition: all 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #shootBtn:active {
+    background: rgba(255,45,85,0.4);
+    box-shadow: 0 0 40px var(--red);
+    transform: scale(0.95);
+  }
+
+  /* GAME OVER */
+  #gameOverScreen {
+    background: rgba(5,10,15,0.95);
+    gap: 15px;
+  }
+  .go-title {
+    font-size: 40px;
+    font-weight: 900;
+    color: var(--red);
+    text-shadow: 0 0 30px var(--red);
+    letter-spacing: 4px;
+  }
+  .go-score {
+    font-family: 'Noto Nastaliq Urdu', serif;
+    font-size: 20px;
+    color: var(--gold);
+    direction: rtl;
+  }
+  #aiSummary {
+    font-family: 'Noto Nastaliq Urdu', serif;
+    font-size: 14px;
+    color: rgba(0,245,255,0.8);
+    direction: rtl;
+    max-width: 300px;
+    text-align: center;
+    line-height: 1.8;
+    border: 1px solid var(--border);
+    padding: 15px;
+    border-radius: 8px;
+    background: var(--panel);
+  }
+  .loading-text {
+    font-family: 'Noto Nastaliq Urdu', serif;
+    color: rgba(0,245,255,0.5);
+    font-size: 12px;
+    direction: rtl;
+    animation: blink 1s infinite;
+  }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .wave-badge {
+    position: absolute;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Noto Nastaliq Urdu', serif;
+    font-size: 18px;
+    color: var(--gold);
+    text-shadow: 0 0 15px var(--gold);
+    direction: rtl;
+    z-index: 15;
+    opacity: 0;
+    transition: opacity 0.5s;
+    pointer-events: none;
+  }
+  .wave-badge.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- MENU -->
+<div id="menuScreen" class="screen active">
+  <div class="grid-bg"></div>
+  <div class="menu-title">AI SHOOTER</div>
+  <div class="menu-subtitle">ذہین شوٹر گیم</div>
+  <br>
+  <button class="btn" onclick="startGame()">▶ شروع کریں</button>
+</div>
+
+<!-- GAME -->
+<div id="gameScreen" class="screen">
+  <canvas id="gameCanvas"></canvas>
+  <div id="hud">
+    <div class="hud-stat">
+      <div class="hud-label">اسکور</div>
+      <div class="hud-value" id="scoreDisplay">0</div>
+    </div>
+    <div class="hud-stat">
+      <div id="healthBar"><div id="healthFill" style="width:100%"></div></div>
+      <div class="hud-label">صحت</div>
+    </div>
+    <div class="hud-stat">
+      <div class="hud-label">لہر</div>
+      <div class="hud-value" id="waveDisplay">1</div>
+    </div>
+  </div>
+  <div id="aiComment"></div>
+  <div id="waveBadge" class="wave-badge"></div>
+  <div id="controls">
+    <div id="joystick">
+      <div id="joystickKnob"></div>
+    </div>
+    <div id="shootBtn">🔥</div>
+  </div>
+</div>
+
+<!-- GAME OVER -->
+<div id="gameOverScreen" class="screen">
+  <div class="go-title">GAME OVER</div>
+  <div class="go-score" id="finalScore">اسکور: 0</div>
+  <div id="aiSummary"><span class="loading-text">AI تجزیہ کر رہا ہے...</span></div>
+  <button class="btn" onclick="startGame()" style="margin-top:10px">دوبارہ کھیلیں</button>
+  <button class="btn" onclick="showScreen('menuScreen')" style="margin-top:5px; border-color: rgba(0,245,255,0.4); color: rgba(0,245,255,0.4);">مینو</button>
+</div>
+
+<script>
+// ========== GAME ENGINE ==========
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let game = {};
+let animId;
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function startGame() {
+  showScreen('gameScreen');
+  initGame();
+  cancelAnimationFrame(animId);
+  loop();
+}
+
+function initGame() {
+  game = {
+    score: 0,
+    health: 100,
+    wave: 1,
+    enemiesKilled: 0,
+    totalShots: 0,
+    hits: 0,
+    player: {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      r: 18,
+      speed: 3,
+      color: '#00f5ff',
+      angle: -Math.PI/2,
+    },
+    bullets: [],
+    enemies: [],
+    particles: [],
+    stars: Array.from({length:60}, () => ({
+      x: Math.random()*canvas.width,
+      y: Math.random()*canvas.height,
+      r: Math.random()*2,
+      a: Math.random()
+    })),
+    joystick: { dx: 0, dy: 0 },
+    shooting: false,
+    shootCooldown: 0,
+    waveTimer: 0,
+    waveSpawnLeft: 5,
+    spawnInterval: 120,
+    spawnTimer: 0,
+    aiEvents: [],
+    running: true,
+  };
+  spawnWave();
+  document.getElementById('scoreDisplay').textContent = '0';
+  document.getElementById('waveDisplay').textContent = '1';
+  document.getElementById('healthFill').style.width = '100%';
+}
+
+function spawnWave() {
+  const count = 4 + game.wave * 2;
+  game.waveSpawnLeft = count;
+  game.spawnInterval = Math.max(30, 100 - game.wave * 10);
+  showWaveBadge(`لہر ${game.wave} شروع!`);
+}
+
+function spawnEnemy() {
+  const side = Math.floor(Math.random()*4);
+  let x, y;
+  const pad = 30;
+  if(side===0){ x=Math.random()*canvas.width; y=-pad; }
+  else if(side===1){ x=canvas.width+pad; y=Math.random()*canvas.height; }
+  else if(side===2){ x=Math.random()*canvas.width; y=canvas.height+pad; }
+  else { x=-pad; y=Math.random()*canvas.height; }
+
+  const types = ['grunt','sniper','tank'];
+  const weights = [0.6, 0.25, 0.15];
+  let r = Math.random(), type = 'grunt';
+  let cumulative = 0;
+  for(let i=0;i<types.length;i++){
+    cumulative += weights[i];
+    if(r <= cumulative){ type = types[i]; break; }
+  }
+
+  const configs = {
+    grunt:  { r:14, speed:1.2+game.wave*0.15, hp:2,  color:'#ff2d55', score:10 },
+    sniper: { r:10, speed:2+game.wave*0.1,    hp:1,  color:'#ff9500', score:15 },
+    tank:   { r:22, speed:0.7+game.wave*0.08, hp:5,  color:'#bf5af2', score:30 },
+  };
+  const cfg = configs[type];
+  game.enemies.push({ x, y, type, ...cfg, maxHp: cfg.hp, angle: 0, shootTimer: type==='sniper'? 60+Math.random()*60 : 999 });
+}
+
+// AI EVENTS for commentary
+const commentaryTriggers = {
+  firstKill: { urdu: '🎯 پہلا شکار! بہت خوب!', fired: false },
+  miss5: { urdu: '⚡ نشانہ بہتر کریں!', count: 0 },
+  lowHealth: { urdu: '❤️ خطرہ! صحت کم ہے!', fired: false },
+  wave2: { urdu: '🔥 دوسری لہر! دشمن بڑھ گئے!', fired: false },
+  score100: { urdu: '🏆 ۱۰۰ پوائنٹس! شاندار!', fired: false },
+};
+
+let commentTimeout;
+function showComment(text) {
+  const el = document.getElementById('aiComment');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(commentTimeout);
+  commentTimeout = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+function showWaveBadge(text) {
+  const el = document.getElementById('waveBadge');
+  el.textContent = text;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ========== LOOP ==========
+let lastTime = 0;
+function loop(ts = 0) {
+  animId = requestAnimationFrame(loop);
+  if(!game.running) return;
+  update();
+  render();
+}
+
+function update() {
+  const p = game.player;
+
+  // Move player
+  if(game.joystick.dx !== 0 || game.joystick.dy !== 0) {
+    p.x += game.joystick.dx * p.speed;
+    p.y += game.joystick.dy * p.speed;
+    p.angle = Math.atan2(game.joystick.dy, game.joystick.dx);
+  }
+  p.x = Math.max(p.r, Math.min(canvas.width - p.r, p.x));
+  p.y = Math.max(p.r, Math.min(canvas.height - p.r, p.y));
+
+  // Auto-aim: aim at nearest enemy
+  if(game.enemies.length > 0) {
+    let nearest = null, minDist = Infinity;
+    game.enemies.forEach(e => {
+      const d = Math.hypot(e.x - p.x, e.y - p.y);
+      if(d < minDist){ minDist = d; nearest = e; }
+    });
+    if(nearest) p.angle = Math.atan2(nearest.y - p.y, nearest.x - p.x);
+  }
+
+  // Shooting
+  if(game.shooting && game.shootCooldown <= 0) {
+    game.bullets.push({
+      x: p.x + Math.cos(p.angle)*p.r,
+      y: p.y + Math.sin(p.angle)*p.r,
+      vx: Math.cos(p.angle)*8,
+      vy: Math.sin(p.angle)*8,
+      r: 4,
+      life: 60,
+    });
+    game.shootCooldown = 15;
+    game.totalShots++;
+  }
+  if(game.shootCooldown > 0) game.shootCooldown--;
+
+  // Spawn enemies
+  if(game.waveSpawnLeft > 0) {
+    game.spawnTimer++;
+    if(game.spawnTimer >= game.spawnInterval) {
+      spawnEnemy();
+      game.waveSpawnLeft--;
+      game.spawnTimer = 0;
+    }
+  }
+
+  // Move enemies
+  game.enemies.forEach(e => {
+    const angle = Math.atan2(p.y - e.y, p.x - e.x);
+    // AI: enemies vary behavior by type
+    if(e.type === 'sniper') {
+      // Circle around player
+      const side = Math.sin(Date.now()*0.001 + e.x) * 0.8;
+      e.x += Math.cos(angle + side) * e.speed;
+      e.y += Math.sin(angle + side) * e.speed;
+    } else {
+      e.x += Math.cos(angle) * e.speed;
+      e.y += Math.sin(angle) * e.speed;
+    }
+
+    // Sniper shoots
+    if(e.type === 'sniper') {
+      e.shootTimer--;
+      if(e.shootTimer <= 0) {
+        game.bullets.push({
+          x: e.x, y: e.y,
+          vx: Math.cos(angle)*5, vy: Math.sin(angle)*5,
+          r: 5, life: 80, enemy: true, color: '#ff9500'
+        });
+        e.shootTimer = 90 + Math.random()*60;
+      }
+    }
+
+    // Enemy hits player
+    const dist = Math.hypot(e.x - p.x, e.y - p.y);
+    if(dist < p.r + e.r) {
+      game.health -= e.type==='tank' ? 15 : 10;
+      spawnParticles(p.x, p.y, '#ff2d55', 8);
+      e.hp = 0; // Remove on contact
+    }
+  });
+
+  // Move bullets
+  game.bullets = game.bullets.filter(b => {
+    b.x += b.vx; b.y += b.vy; b.life--;
+    if(b.life <= 0) return false;
+    if(b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) return false;
+
+    if(!b.enemy) {
+      // Player bullet hits enemy
+      let hit = false;
+      game.enemies = game.enemies.filter(e => {
+        if(Math.hypot(b.x-e.x, b.y-e.y) < b.r+e.r) {
+          e.hp--;
+          spawnParticles(e.x, e.y, e.color, 5);
+          if(e.hp <= 0) {
+            game.score += e.score * game.wave;
+            game.enemiesKilled++;
+            game.hits++;
+            spawnParticles(e.x, e.y, e.color, 15);
+            // Commentary
+            if(game.enemiesKilled === 1) showComment('🎯 پہلا شکار! بہت خوب!');
+            if(game.score >= 100 && !commentaryTriggers.score100.fired) {
+              commentaryTriggers.score100.fired = true;
+              showComment('🏆 ۱۰۰ پوائنٹس! شاندار!');
+            }
+            return false;
+          }
+          hit = true;
+          return true;
+        }
+        return true;
+      });
+      if(hit) return false;
+    } else {
+      // Enemy bullet hits player
+      if(Math.hypot(b.x-p.x, b.y-p.y) < b.r+p.r) {
+        game.health -= 8;
+        spawnParticles(p.x, p.y, '#ff9500', 6);
+        return false;
+      }
+    }
+    return true;
+  });
+
+  // Remove dead enemies
+  game.enemies = game.enemies.filter(e => e.hp > 0);
+
+  // Health clamp
+  game.health = Math.max(0, Math.min(100, game.health));
+  document.getElementById('healthFill').style.width = game.health + '%';
+  document.getElementById('scoreDisplay').textContent = game.score;
+  document.getElementById('waveDisplay').textContent = game.wave;
+
+  // Low health warning
+  if(game.health <= 30 && game.health > 0 && !commentaryTriggers.lowHealth.fired) {
+    commentaryTriggers.lowHealth.fired = true;
+    showComment('❤️ خطرہ! صحت کم ہے!');
+  }
+
+  // Particles
+  game.particles = game.particles.filter(p => {
+    p.x += p.vx; p.y += p.vy;
+    p.life--;
+    p.vx *= 0.95; p.vy *= 0.95;
+    return p.life > 0;
+  });
+
+  // Wave complete
+  if(game.waveSpawnLeft === 0 && game.enemies.length === 0) {
+    game.wave++;
+    if(game.wave === 2 && !commentaryTriggers.wave2.fired) {
+      commentaryTriggers.wave2.fired = true;
+      showComment('🔥 دوسری لہر! دشمن بڑھ گئے!');
+    } else if(game.wave > 2) {
+      showComment(`⚔️ لہر ${game.wave}! تیار رہیں!`);
+    }
+    game.health = Math.min(100, game.health + 20); // health bonus
+    spawnWave();
+  }
+
+  // Game over
+  if(game.health <= 0) {
+    game.running = false;
+    endGame();
+  }
+}
+
+function spawnParticles(x, y, color, count) {
+  for(let i=0;i<count;i++) {
+    game.particles.push({
+      x, y,
+      vx: (Math.random()-0.5)*6,
+      vy: (Math.random()-0.5)*6,
+      r: Math.random()*4+1,
+      color,
+      life: 20+Math.random()*20,
+    });
+  }
+}
+
+function render() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = '#050a0f';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // Stars
+  game.stars.forEach(s => {
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(0,245,255,${s.a*0.5})`;
+    ctx.fill();
+  });
+
+  // Particles
+  game.particles.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.life / 40;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+
+  // Enemies
+  game.enemies.forEach(e => {
+    ctx.save();
+    ctx.translate(e.x, e.y);
+
+    // Glow
+    ctx.shadowColor = e.color;
+    ctx.shadowBlur = 15;
+
+    ctx.beginPath();
+    if(e.type === 'tank') {
+      // Hexagon
+      for(let i=0;i<6;i++){
+        const a = (Math.PI/3)*i;
+        i===0 ? ctx.moveTo(Math.cos(a)*e.r, Math.sin(a)*e.r)
+               : ctx.lineTo(Math.cos(a)*e.r, Math.sin(a)*e.r);
+      }
+      ctx.closePath();
+    } else if(e.type === 'sniper') {
+      // Diamond
+      ctx.moveTo(0, -e.r);
+      ctx.lineTo(e.r, 0);
+      ctx.lineTo(0, e.r);
+      ctx.lineTo(-e.r, 0);
+      ctx.closePath();
+    } else {
+      ctx.arc(0, 0, e.r, 0, Math.PI*2);
+    }
+    ctx.fillStyle = e.color + '33';
+    ctx.strokeStyle = e.color;
+    ctx.lineWidth = 2;
+    ctx.fill();
+    ctx.stroke();
+
+    // HP bar
+    const bw = e.r*2;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(-e.r, -e.r-10, bw, 4);
+    ctx.fillStyle = e.color;
+    ctx.fillRect(-e.r, -e.r-10, bw*(e.hp/e.maxHp), 4);
+
+    ctx.restore();
+  });
+
+  // Player bullets
+  game.bullets.forEach(b => {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+    ctx.fillStyle = b.enemy ? (b.color || '#ff9500') : '#00f5ff';
+    ctx.shadowColor = b.enemy ? '#ff9500' : '#00f5ff';
+    ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+
+  // Player
+  const p = game.player;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.angle + Math.PI/2);
+  ctx.shadowColor = '#00f5ff';
+  ctx.shadowBlur = 20;
+
+  // Ship shape
+  ctx.beginPath();
+  ctx.moveTo(0, -p.r);
+  ctx.lineTo(p.r*0.6, p.r*0.8);
+  ctx.lineTo(0, p.r*0.4);
+  ctx.lineTo(-p.r*0.6, p.r*0.8);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(0,245,255,0.15)';
+  ctx.strokeStyle = '#00f5ff';
+  ctx.lineWidth = 2;
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ========== CONTROLS ==========
+const joystick = document.getElementById('joystick');
+const knob = document.getElementById('joystickKnob');
+const shootBtn = document.getElementById('shootBtn');
+let joystickActive = false, joystickId = -1;
+let joystickOrigin = { x: 0, y: 0 };
+
+joystick.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  joystickActive = true;
+  joystickId = t.identifier;
+  const rect = joystick.getBoundingClientRect();
+  joystickOrigin = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+}, { passive: false });
+
+document.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for(let t of e.changedTouches) {
+    if(t.identifier === joystickId && joystickActive) {
+      const dx = t.clientX - joystickOrigin.x;
+      const dy = t.clientY - joystickOrigin.y;
+      const dist = Math.hypot(dx, dy);
+      const maxR = 35;
+      const clamp = Math.min(dist, maxR);
+      const nx = (dx/dist||0) * clamp;
+      const ny = (dy/dist||0) * clamp;
+      knob.style.transform = `translate(${nx}px,${ny}px)`;
+      game.joystick = { dx: dx/Math.max(dist,1), dy: dy/Math.max(dist,1) };
+    }
+  }
+}, { passive: false });
+
+document.addEventListener('touchend', e => {
+  for(let t of e.changedTouches) {
+    if(t.identifier === joystickId) {
+      joystickActive = false;
+      knob.style.transform = 'translate(0,0)';
+      game.joystick = { dx: 0, dy: 0 };
+    }
+  }
+});
+
+shootBtn.addEventListener('touchstart', e => { e.preventDefault(); game.shooting = true; });
+shootBtn.addEventListener('touchend', e => { e.preventDefault(); game.shooting = false; });
+
+// Keyboard support
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if(e.key === ' ') game.shooting = true;
+});
+window.addEventListener('keyup', e => {
+  keys[e.key] = false;
+  if(e.key === ' ') game.shooting = false;
+});
+
+setInterval(() => {
+  if(!game.running || !game.joystick) return;
+  let dx = 0, dy = 0;
+  if(keys['ArrowLeft']||keys['a']) dx -= 1;
+  if(keys['ArrowRight']||keys['d']) dx += 1;
+  if(keys['ArrowUp']||keys['w']) dy -= 1;
+  if(keys['ArrowDown']||keys['s']) dy += 1;
+  if(dx||dy) {
+    const len = Math.hypot(dx,dy);
+    game.joystick = { dx: dx/len, dy: dy/len };
+    knob.style.transform = `translate(${dx*20}px,${dy*20}px)`;
+  } else if(!joystickActive) {
+    game.joystick = { dx: 0, dy: 0 };
+    knob.style.transform = 'translate(0,0)';
+  }
+}, 16);
+
+// ========== GAME OVER + AI SUMMARY ==========
+async function endGame() {
+  setTimeout(() => {
+    showScreen('gameOverScreen');
+    document.getElementById('finalScore').textContent = `اسکور: ${game.score} | لہر: ${game.wave} | دشمن: ${game.enemiesKilled}`;
+    getAISummary();
+  }, 800);
+}
+
+async function getAISummary() {
+  const accuracy = game.totalShots > 0 ? Math.round((game.hits/game.totalShots)*100) : 0;
+  const prompt = `آپ ایک اردو ویڈیو گیم کمنٹیٹر ہیں۔ کھلاڑی نے AI شوٹر گیم کھیلی۔ نتائج:
+- اسکور: ${game.score}
+- لہر: ${game.wave}
+- دشمن مارے: ${game.enemiesKilled}
+- درستگی: ${accuracy}%
+
+2-3 جملوں میں اردو میں مختصر تعریف یا مشورہ دیں۔ گرم جوشی سے لکھیں۔`;
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 200,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.map(c => c.text||'').join('') || '';
+    document.getElementById('aiSummary').textContent = text || 'AI تجزیہ دستیاب نہیں۔';
+  } catch(err) {
+    document.getElementById('aiSummary').textContent = `🎮 اسکور ${game.score} بہت اچھا ہے! اگلی بار مزید بہتر کریں!`;
+  }
+}
+</script>
+</body>
+</html>
